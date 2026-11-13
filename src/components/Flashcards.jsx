@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
+import { ArrowLeft, ArrowRight, Flip, Shuffle } from './Icons.jsx';
 
 /** Fisher-Yates shuffle on a copy; the original array is never mutated. */
 function shuffled(items) {
@@ -38,9 +39,12 @@ export default function Flashcards({ cards, isActive }) {
 
   return (
     <div className="flashcards">
-      <p className="progress" aria-live="polite">
-        Card {index + 1} of {deck.length}
-      </p>
+      <div className="progress">
+        <span aria-live="polite">
+          Card {index + 1} of {deck.length}
+        </span>
+        <progress value={index + 1} max={deck.length} aria-hidden="true" />
+      </div>
 
       {/* A real <button>, so Enter and Space flip it without any extra code. */}
       <button
@@ -53,25 +57,32 @@ export default function Flashcards({ cards, isActive }) {
           <span className="flashcard__face flashcard__face--front" aria-hidden={isFlipped}>
             <span className="flashcard__tag">Question</span>
             <span className="flashcard__text">{card.front}</span>
-            <span className="flashcard__hint">Tap to flip</span>
+            <span className="flashcard__hint">
+              <Flip size={14} /> Tap to see the answer
+            </span>
           </span>
           <span className="flashcard__face flashcard__face--back" aria-hidden={!isFlipped}>
             <span className="flashcard__tag">Answer</span>
             <span className="flashcard__text">{card.back}</span>
-            <span className="flashcard__hint">Tap to flip back</span>
+            <span className="flashcard__hint">
+              <Flip size={14} /> Tap to flip back
+            </span>
           </span>
         </span>
       </button>
 
-      <div className="button-row button-row--spread">
-        <button type="button" className="btn" onClick={() => goTo(index - 1)} disabled={isFirst}>
-          ← Previous
+      <div className="card-nav">
+        <button type="button" className="btn" onClick={() => goTo(index - 1)} disabled={isFirst} aria-label="Previous card">
+          <ArrowLeft />
+          <span className="btn__label">Previous</span>
         </button>
-        <button type="button" className="btn" onClick={shuffle} disabled={deck.length < 2}>
+        <button type="button" className="btn btn--quiet" onClick={shuffle} disabled={deck.length < 2}>
+          <Shuffle />
           Shuffle
         </button>
-        <button type="button" className="btn" onClick={() => goTo(index + 1)} disabled={isLast}>
-          Next →
+        <button type="button" className="btn" onClick={() => goTo(index + 1)} disabled={isLast} aria-label="Next card">
+          <span className="btn__label">Next</span>
+          <ArrowRight />
         </button>
       </div>
       <p className="keyboard-hint">Keyboard: ← → to move, Enter or Space to flip</p>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { Logo } from './components/Icons.jsx';
 import SavedSessions from './components/SavedSessions.jsx';
 import { EmptyState, ErrorState, LoadingState } from './components/StatusViews.jsx';
 import StudySet from './components/StudySet.jsx';
@@ -26,7 +27,10 @@ export default function App() {
   }, [status, result, saveSession]);
 
   function handleSubmit(value, options) {
-    generation.generate(value, options);
+    // Asking again for the text that is already on screen means "give me a
+    // different set", so tell the server not to answer from its cache.
+    const isRepeat = result !== null && result.sourceText.trim() === value.trim();
+    generation.generate(value, { ...options, fresh: isRepeat });
     // On a phone the form fills the screen; bring the loading state into view.
     resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -44,9 +48,17 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app__header">
-        <h1>Study Assistant</h1>
-        <p>Turn notes or a topic into flashcards and a quiz.</p>
+      <header className="hero">
+        <div className="hero__inner">
+          <p className="brand">
+            <Logo />
+            <span>Study Assistant</span>
+          </p>
+          <h1 className="hero__title">
+            Turn your notes into <em>something you can study.</em>
+          </h1>
+          <p className="hero__lede">Paste notes or name a topic. Get flashcards to flip and a quiz that re-tests what you miss.</p>
+        </div>
       </header>
 
       <main className="app__main">

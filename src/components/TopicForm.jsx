@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LIMITS } from '../../shared/studySet.js';
+import { ArrowRight } from './Icons.jsx';
 
 const EXAMPLES = [
   'The causes of World War I',
@@ -71,7 +72,8 @@ export default function TopicForm({ value, onChange, onSubmit }) {
       </div>
 
       {isEmpty && (
-        <div className="chips" aria-label="Example topics">
+        <div className="chips">
+          <span className="chips__label">Try:</span>
           {EXAMPLES.map((example) => (
             <button key={example} type="button" className="chip" onClick={() => onChange(example)}>
               {example}
@@ -81,8 +83,9 @@ export default function TopicForm({ value, onChange, onSubmit }) {
       )}
 
       <div className="form__actions">
-        <button type="submit" className="btn btn--primary">
+        <button type="submit" className="btn btn--primary btn--large">
           Generate study set
+          <ArrowRight />
         </button>
         {import.meta.env.DEV && (
           <label className="form__mock">

@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Never embed small files as data: URLs. The Content-Security-Policy only
+    // allows fonts from our own origin, so an embedded font would be blocked.
+    assetsInlineLimit: 0,
+  },
   server: {
     port: 5173,
     // In development the browser talks to Vite (5173) and Vite forwards
