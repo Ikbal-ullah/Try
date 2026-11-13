@@ -1,5 +1,9 @@
 # Study Assistant
 
+**Live app: https://study-assistant-68sd.onrender.com**
+
+> Hosted on Render's free plan, which sleeps after 15 minutes without visitors. If the page takes about a minute to load, it is waking up.
+
 Paste your notes or type a topic. An AI model turns it into **flashcards** and a **multiple-choice quiz**, and the app lets you flip through the cards, take the quiz, and **re-test only the questions you got wrong**.
 
 It is not a chatbot: the model returns JSON, the app validates it, and only validated data is rendered as interactive components.
