@@ -157,7 +157,7 @@ What I did myself: _[fill in honestly, for example: chose the Study assistant op
 
 ## Design
 
-The look is a dark "aurora" theme: soft coloured light on charcoal, with a gradient orb and contour lines in the header.
+The look is a dark "aurora" theme: soft coloured light on charcoal. The header artwork is a fanned stack of flashcards drawn in CSS, so the first thing a visitor sees is what the product does.
 
 Colour follows the 60 / 30 / 10 rule:
 
