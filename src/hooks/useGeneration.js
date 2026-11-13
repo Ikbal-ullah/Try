@@ -28,14 +28,14 @@ export function useGeneration() {
   }, []);
 
   const generate = useCallback(
-    async (text, { mock = '' } = {}) => {
+    async (text, { mock = '', fresh = false } = {}) => {
       invalidateInFlight();
       const requestId = latestRequestId.current;
       const isLatest = () => requestId === latestRequestId.current;
 
       const controller = new AbortController();
       controllerRef.current = controller;
-      lastRequestRef.current = { text, mock };
+      lastRequestRef.current = { text, mock, fresh };
 
       let timedOut = false;
       const slowTimer = setTimeout(() => isLatest() && dispatch({ type: 'slow' }), SLOW_AFTER_MS);
@@ -47,7 +47,7 @@ export function useGeneration() {
       dispatch({ type: 'start' });
 
       try {
-        const { studySet, warnings } = await requestStudySet({ text, mock, signal: controller.signal });
+        const { studySet, warnings } = await requestStudySet({ text, mock, fresh, signal: controller.signal });
         // THE stale-response guard. If the user has started another request
         // (or cancelled) while we were waiting, this answer is dropped.
         if (!isLatest()) return;
@@ -56,7 +56,7 @@ export function useGeneration() {
         if (!isLatest()) return; // superseded or cancelled: not an error the user should see
         const error = timedOut
           ? { code: 'TIMEOUT', message: 'The AI took too long to respond.' }
-          : { code: err.code ?? 'UNKNOWN', message: err.message || 'Something went wrong.' };
+          : { code: err.code ?? 'UNKNOWN', message: err.message || 'Something went wrong.', requestId: err.requestId };
         dispatch({ type: 'failure', error });
       } finally {
         clearTimeout(slowTimer);
@@ -68,7 +68,7 @@ export function useGeneration() {
 
   const retry = useCallback(() => {
     const last = lastRequestRef.current;
-    if (last) generate(last.text, { mock: last.mock });
+    if (last) generate(last.text, { mock: last.mock, fresh: last.fresh });
   }, [generate]);
 
   /** Stop waiting (or dismiss an error) and go back to the previous result, if any. */

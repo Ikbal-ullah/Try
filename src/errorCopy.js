@@ -7,7 +7,8 @@ const COPY = {
   BAD_RESPONSE: { title: 'The server sent something unexpected', hint: 'If you are running this locally, make sure the API server is running.' },
   TIMEOUT: { title: 'That took too long', hint: 'The AI did not answer in time. Try again, or use shorter notes.' },
   RATE_LIMITED: { title: 'Too many requests', hint: 'The AI provider asked us to slow down. Wait a minute and try again.' },
-  TOO_MANY_REQUESTS: { title: 'Slow down a little', hint: 'You are generating study sets very quickly. Wait a minute and try again.' },
+  TOO_MANY_REQUESTS: { title: 'Slow down a little' }, // hint comes from the server: per-minute and per-day limits differ
+  FORBIDDEN: { title: 'Request blocked', retryable: false },
   SERVER_BUSY: { title: 'Lots of people are studying right now', hint: 'The app is at capacity. Try again in a moment.' },
   QUOTA_EXHAUSTED: { title: 'The AI is unavailable', hint: 'The AI account behind this app has run out of credit, so trying again will not help. Please come back later.', retryable: false },
   OVERLOADED: { title: 'The AI is busy right now', hint: 'The model is overloaded. This usually clears up within a minute.' },
@@ -20,9 +21,10 @@ const COPY = {
   PROVIDER_ERROR: { title: 'The AI service had a problem', hint: 'This is on the AI provider side. Try again in a moment.' },
 };
 
-const FALLBACK = { title: 'Something went wrong', hint: 'Please try again.' };
+const FALLBACK = { title: 'Something went wrong' };
 
 export function describeError(error) {
-  const copy = COPY[error?.code] ?? { ...FALLBACK, hint: error?.message || FALLBACK.hint };
-  return { retryable: true, ...copy };
+  const copy = COPY[error?.code] ?? FALLBACK;
+  // No hint written for this code? Use the server's message.
+  return { retryable: true, hint: error?.message || 'Please try again.', ...copy };
 }

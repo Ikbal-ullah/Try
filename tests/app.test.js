@@ -14,8 +14,8 @@ async function start(options) {
     const s = app.listen(0, () => resolve(s));
   });
   const base = `http://localhost:${server.address().port}`;
-  return (body) =>
-    fetch(`${base}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+  return (body, headers = {}) =>
+    fetch(`${base}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body });
 }
 
 afterEach(() => new Promise((resolve) => server.close(resolve)));
@@ -26,8 +26,56 @@ describe('POST /api/generate', () => {
     const res = await post(JSON.stringify({ text: 'hooks' }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(goodResult);
-    expect(res.headers.get('content-security-policy')).toContain("default-src 'self'");
+    const csp = res.headers.get('content-security-policy');
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toContain('unsafe-inline');
+    expect(res.headers.get('permissions-policy')).toContain('camera=()');
+    expect(res.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);
     expect(res.headers.get('x-powered-by')).toBeNull();
+  });
+
+  it('refuses requests that another website makes through a visitor\'s browser', async () => {
+    const post = await start();
+    const body = JSON.stringify({ text: 'hooks' });
+    const crossSite = await post(body, { 'Sec-Fetch-Site': 'cross-site' });
+    expect(crossSite.status).toBe(403);
+    expect((await crossSite.json()).error.code).toBe('FORBIDDEN');
+    expect((await post(body, { 'Sec-Fetch-Site': 'same-origin' })).status).toBe(200);
+  });
+
+  it('serves a repeated request from the cache without calling the model again', async () => {
+    let calls = 0;
+    const post = await start({
+      generate: async () => {
+        calls += 1;
+        return goodResult;
+      },
+    });
+    const first = await (await post(JSON.stringify({ text: 'React Hooks' }))).json();
+    const second = await (await post(JSON.stringify({ text: '  react   hooks ' }))).json();
+    expect(first.cached).toBeUndefined();
+    expect(second.cached).toBe(true);
+    expect(second.studySet).toEqual(goodResult.studySet);
+    expect(calls).toBe(1);
+
+    // "generate again" must reach the model
+    await post(JSON.stringify({ text: 'React Hooks', fresh: true }));
+    expect(calls).toBe(2);
+  });
+
+  it('never caches failures', async () => {
+    let calls = 0;
+    const post = await start({
+      generate: async () => {
+        calls += 1;
+        throw new AppError('OVERLOADED', 'busy');
+      },
+    });
+    await post(JSON.stringify({ text: 'hooks' }));
+    await post(JSON.stringify({ text: 'hooks' }));
+    expect(calls).toBe(2);
   });
 
   it('turns an AppError into a JSON error with the matching status', async () => {
@@ -38,7 +86,9 @@ describe('POST /api/generate', () => {
     });
     const res = await post(JSON.stringify({ text: 'hooks' }));
     expect(res.status).toBe(504);
-    expect((await res.json()).error.code).toBe('TIMEOUT');
+    const { error } = await res.json();
+    expect(error.code).toBe('TIMEOUT');
+    expect(error.requestId).toBe(res.headers.get('x-request-id'));
   });
 
   it('never leaks the details of an unexpected error', async () => {
@@ -69,6 +119,15 @@ describe('POST /api/generate', () => {
     expect((await third.json()).error.code).toBe('TOO_MANY_REQUESTS');
   });
 
+  it('enforces the daily limit separately from the per-minute limit', async () => {
+    const post = await start({ rateLimitPerMinute: 50, rateLimitPerDay: 1 });
+    const body = JSON.stringify({ text: 'hooks' });
+    expect((await post(body)).status).toBe(200);
+    const second = await post(body);
+    expect(second.status).toBe(429);
+    expect((await second.json()).error.message).toMatch(/daily limit/);
+  });
+
   it('answers "busy" instead of queueing when too many generations are running', async () => {
     let release;
     const gate = new Promise((resolve) => (release = resolve));
@@ -76,7 +135,7 @@ describe('POST /api/generate', () => {
     const body = JSON.stringify({ text: 'hooks' });
     const first = post(body); // occupies the only slot
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const second = await post(body);
+    const second = await post(JSON.stringify({ text: 'a different topic' }));
     expect(second.status).toBe(503);
     expect((await second.json()).error.code).toBe('SERVER_BUSY');
     release();

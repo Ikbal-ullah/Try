@@ -4,6 +4,7 @@
 import { LIMITS, parseStudySet, StudySetError } from '../shared/studySet.js';
 import { AppError } from './errors.js';
 import { callModel } from './llm.js';
+import { log } from './log.js';
 import { getMock } from './mocks.js';
 import { buildMessages } from './prompt.js';
 
@@ -43,7 +44,7 @@ export async function generateStudySet({ text, mock, signal }) {
       const known = err instanceof StudySetError || err instanceof AppError;
       if (!known || signal?.aborted) throw err;
       lastError = err;
-      console.warn(`[generate] attempt ${attempt} failed: ${err.code}`);
+      log('warn', 'generate.attempt_failed', { attempt, code: err.code });
       if (!RETRYABLE.has(err.code) || attempt === MAX_ATTEMPTS) break;
       await pause(RETRY_DELAY_MS);
     }
