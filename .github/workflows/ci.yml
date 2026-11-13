@@ -15,5 +15,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Fail the build if a dependency that ships to production has a known serious vulnerability.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm test
       - run: npm run build
