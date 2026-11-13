@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
-import { HeroDeck, Logo } from './components/Icons.jsx';
+import { ContourLines, HeroDeck, Logo } from './components/Icons.jsx';
 import SavedSessions from './components/SavedSessions.jsx';
 import { EmptyState, ErrorState, LoadingState } from './components/StatusViews.jsx';
 import StudySet from './components/StudySet.jsx';
@@ -51,6 +51,8 @@ export default function App() {
       <header className="hero">
         {/* Purely decorative, so it is hidden from screen readers. */}
         <div className="hero__art" aria-hidden="true">
+          {/* The lines come first so the cards sit on top of them. */}
+          <ContourLines />
           <HeroDeck />
         </div>
         <div className="hero__inner">
