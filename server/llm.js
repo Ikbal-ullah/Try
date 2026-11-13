@@ -6,6 +6,7 @@
 // so switching provider is a .env change, not a code change.
 
 import { AppError } from './errors.js';
+import { log } from './log.js';
 
 /**
  * Send messages to the model and return its raw text reply.
@@ -54,7 +55,7 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
   } catch (err) {
     if (timeout.aborted) throw new AppError('TIMEOUT', 'The AI took too long to respond.');
     if (signal?.aborted) throw err; // caller cancelled; nobody is listening for the answer
-    console.error('[llm] network error:', err.message);
+    log('error', 'llm.network_error', { model, reason: err.message });
     throw new AppError('PROVIDER_ERROR', 'Could not reach the AI provider.');
   }
 
@@ -64,7 +65,7 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
     // the user is not told to retry something that cannot work.
     const detail = await response.text().catch(() => '');
     if (/insufficient_quota|no credits|billing/i.test(detail)) {
-      console.error('[llm] the AI account is out of credit or quota');
+      log('error', 'llm.quota_exhausted', { model });
       throw new AppError('QUOTA_EXHAUSTED', 'The AI account behind this app has run out of credit.');
     }
     throw new AppError('RATE_LIMITED', 'The AI provider is rate-limiting requests. Wait a moment and try again.');
@@ -75,7 +76,7 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
   if (!response.ok) {
     // Log the provider's detail on the server; send the browser a safe summary.
     const detail = await response.text().catch(() => '');
-    console.error(`[llm] provider responded ${response.status}:`, detail.slice(0, 500));
+    log('error', 'llm.provider_error', { model, status: response.status, detail: detail.slice(0, 300) });
     throw new AppError('PROVIDER_ERROR', `The AI provider returned an error (${response.status}).`);
   }
 

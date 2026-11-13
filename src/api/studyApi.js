@@ -5,20 +5,25 @@
 import { normalizeStudySet } from '../../shared/studySet.js';
 
 export class ApiError extends Error {
-  constructor(code, message) {
+  constructor(code, message, requestId) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
+    this.requestId = requestId; // lets a user's report be matched to a server log line
   }
 }
 
-export async function requestStudySet({ text, mock, signal }) {
+/**
+ * `fresh: true` asks the server for a newly generated set even if it has a
+ * cached one for the same text ("generate again").
+ */
+export async function requestStudySet({ text, mock, fresh, signal }) {
   let response;
   try {
     response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, mock: mock || undefined }),
+      body: JSON.stringify({ text, mock: mock || undefined, fresh: fresh || undefined }),
       signal,
     });
   } catch (err) {
@@ -39,7 +44,8 @@ export async function requestStudySet({ text, mock, signal }) {
   if (!response.ok) {
     const code = typeof body?.error?.code === 'string' ? body.error.code : 'UNKNOWN';
     const message = typeof body?.error?.message === 'string' ? body.error.message : 'Something went wrong.';
-    throw new ApiError(code, message);
+    const requestId = typeof body?.error?.requestId === 'string' ? body.error.requestId : undefined;
+    throw new ApiError(code, message, requestId);
   }
 
   // The server already validated this, but the browser should not have to
