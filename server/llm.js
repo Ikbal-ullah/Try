@@ -10,10 +10,13 @@ import { AppError } from './errors.js';
 /**
  * Send messages to the model and return its raw text reply.
  * `signal` lets the caller cancel (e.g. when the browser gives up).
+ * `attempt` (1, 2, ...) picks the model: LLM_MODEL may list a fallback after a
+ * comma, so a retry can go to a different model when the first is overloaded.
  */
-export async function callModel(messages, { signal } = {}) {
+export async function callModel(messages, { signal, attempt = 1 } = {}) {
   const baseUrl = (process.env.LLM_BASE_URL ?? '').replace(/\/+$/, '');
-  const model = process.env.LLM_MODEL;
+  const models = (process.env.LLM_MODEL ?? '').split(',').map((name) => name.trim()).filter(Boolean);
+  const model = models[(attempt - 1) % models.length];
   const apiKey = process.env.LLM_API_KEY;
   const timeoutMs = Number(process.env.LLM_TIMEOUT_MS) || 30_000;
 
