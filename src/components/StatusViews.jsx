@@ -1,10 +1,27 @@
 import { describeError } from '../errorCopy.js';
+import { Alert } from './Icons.jsx';
+
+const STEPS = [
+  ['Add your material', 'Paste lecture notes, a chapter summary, or just the name of a topic.'],
+  ['Flip through the cards', 'Key ideas become flashcards. Flip, shuffle and move at your own pace.'],
+  ['Quiz, then fix your misses', 'Answer the questions, see why, and re-test only the ones you got wrong.'],
+];
 
 export function EmptyState() {
   return (
-    <section className="panel status">
-      <h2>Nothing to study yet</h2>
-      <p>Paste your notes or type a topic above. You will get flashcards to flip through and a quiz that re-tests whatever you get wrong.</p>
+    <section className="panel how">
+      <h2 className="eyebrow">How it works</h2>
+      <ol className="how__steps">
+        {STEPS.map(([title, body], i) => (
+          <li key={title} className="how__step">
+            <span className="how__number" aria-hidden="true">{i + 1}</span>
+            <div>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -18,7 +35,7 @@ export function LoadingState({ isSlow, onCancel }) {
         <div className="skeleton__line" />
       </div>
       {/* role="status" makes screen readers announce the text when it changes */}
-      <p role="status">
+      <p role="status" className="status__text">
         {isSlow ? 'Still working… free AI models can take up to half a minute.' : 'Writing your flashcards and quiz…'}
       </p>
       <button type="button" className="btn" onClick={onCancel}>
@@ -32,8 +49,11 @@ export function ErrorState({ error, hasPreviousResult, onRetry, onDismiss }) {
   const { title, hint, retryable } = describeError(error);
   return (
     <section className="panel status status--error" role="alert">
-      <h2>{title}</h2>
-      <p>{hint}</p>
+      <h2 className="status__title">
+        <Alert size={20} />
+        {title}
+      </h2>
+      <p className="status__text">{hint}</p>
       <div className="button-row">
         {retryable && (
           <button type="button" className="btn btn--primary" onClick={onRetry}>
@@ -46,7 +66,11 @@ export function ErrorState({ error, hasPreviousResult, onRetry, onDismiss }) {
           </button>
         )}
       </div>
-      <p className="status__detail">Your text is still in the box above.</p>
+      <p className="status__detail">
+        Your text is still in the box above.
+        {/* A short reference a user can quote; it matches a line in the server logs. */}
+        {error?.requestId && <span> Reference: {error.requestId.slice(0, 8)}</span>}
+      </p>
     </section>
   );
 }
