@@ -1,0 +1,28 @@
+# Render Blueprint: describes the whole deployment, so creating the service is
+# one click instead of a form. https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: study-assistant
+    runtime: node
+    plan: free
+    # --include=dev because the build needs Vite, and Render sets
+    # NODE_ENV=production, which would otherwise skip dev dependencies.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run serve
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: LLM_MODEL
+        value: gemini-3.5-flash-lite,gemini-2.5-flash
+      # The secret. `sync: false` means Render asks for it when the service is
+      # created and it is never stored in this repository.
+      - key: LLM_API_KEY
+        sync: false

@@ -30,9 +30,9 @@ Other commands:
 
 | Command | What it does |
 |---|---|
-| `npm test` | Runs the unit tests (parser, server use case, both reducers) |
+| `npm test` | Runs the tests (parser, server use case, HTTP API, both reducers) |
 | `npm run build` | Builds the React app into `dist/` |
-| `npm run serve` | Runs the API server, which also serves `dist/` if it exists |
+| `npm run serve` | Runs the server the way production does: API plus the built app from `dist/` |
 
 ### Using a different AI provider
 
@@ -70,7 +70,8 @@ StudySet ▶ Flashcards / Quiz
 | `server/llm.js` | The only file that touches the API key. Calls the provider with a timeout. |
 | `server/generate.js` | Input checks, model call, validation, one automatic retry. |
 | `server/mocks.js` | Dev-only failure simulator. |
-| `server/index.js` | Express routes. Always answers with JSON. |
+| `server/app.js` | Express app: security headers, rate limit, concurrency cap, routes, static files. Always answers with JSON. |
+| `server/index.js` | Starts the server and shuts it down cleanly. |
 | `src/hooks/useGeneration.js` | Loading, error and success state; cancel; timeout; stale-response guard. |
 | `src/hooks/generationReducer.js` | The state machine behind that hook, as a pure function. |
 | `src/components/` | The UI: form, status views, flashcards, quiz, saved sessions, error boundary. |
@@ -136,25 +137,61 @@ What I did myself: _[fill in honestly, for example: chose the Study assistant op
 - **The AI can be factually wrong.** The app checks structure, not truth. It cannot tell whether the "correct" answer really is correct.
 - **Free-tier limits.** Free models are sometimes overloaded or rate limited. The app reports this clearly but cannot fix it.
 - **Prompt injection is only mitigated.** Notes are wrapped in markers and the model is told to treat them as data, which reduces but does not eliminate the risk. The worst case is odd study content, since the output is still validated and rendered as plain text.
-- **No rate limiting on the API route.** A deployed copy could have its key's quota used up by anyone who finds the URL.
+- **The real capacity limit is the AI quota.** The server itself handles thousands of requests per second, but a free AI key allows only a handful of generations per minute. Under real traffic the fix is a paid key, not more servers.
+- **Rate limiting is per server instance.** The limiter keeps its counters in memory, which is correct for one instance. Running several instances would need a shared store such as Redis.
+- **Free hosting sleeps.** On Render's free plan the service stops after 15 minutes without visitors, and the next visit waits about a minute while it wakes up.
 - **Saved sets are per browser.** There are no accounts and no sync.
-- **Tests cover logic, not components.** The parser, server use case and reducers are unit tested. Component behaviour was checked with a scripted browser run, which is not part of the repository.
+- **Tests cover logic and the HTTP API, not components.** Component behaviour was checked with a scripted browser run, which is not part of the repository.
 
 ## What I would do next
 
 1. Stream the response and show cards as they arrive.
 2. A refinement prompt ("make the quiz harder", "add 5 more cards") that edits the current set.
 3. Save quiz progress and scores per set.
-4. Rate limit `/api/generate`.
+4. Cache results for identical input on the server, to save AI quota under load.
 5. Component tests with React Testing Library.
+6. Error tracking (for example Sentry) and an uptime monitor on `/api/health`.
+
+## Production setup
+
+One Node process serves both the API and the built React app, so the frontend and backend share an origin: no CORS configuration, one deployment, one URL.
+
+| Concern | What is in place |
+|---|---|
+| Secrets | The API key is an environment variable on the host. It is not in the repository, the browser bundle or the Docker image. |
+| Abuse | `/api/generate` is rate limited per visitor (10 per minute by default) and answers `429` with a clear message. |
+| Traffic spikes | At most 8 model calls run at once across all visitors. Beyond that the server answers "busy" immediately instead of queueing requests until they time out. |
+| Wasted quota | If a visitor cancels or leaves, the model call is aborted. Request bodies over 32 KB are rejected before any work is done. |
+| Security headers | `helmet` sets a Content-Security-Policy that only allows scripts and requests to the app's own origin, plus HSTS and the usual hardening headers. |
+| Speed | Responses are gzip compressed (the JS bundle is 98 KB over the wire). Hashed assets are cached for a year; `index.html` is always revalidated so a new deploy shows up immediately. |
+| Deploys | The server handles `SIGTERM`: it stops accepting requests, lets running ones finish, then exits. `/api/health` is the health check. |
+| Logs | One line per generation with outcome and duration. The visitor's text is never logged. |
+| Dev-only code | The failure simulator is hidden in production builds and ignored by the server when `NODE_ENV=production`. |
+| CI | GitHub Actions runs the tests and the build on every push and pull request. |
+
+The limits are settings, not code: `RATE_LIMIT_PER_MINUTE`, `MAX_CONCURRENT_GENERATIONS` and `TRUST_PROXY` (see `.env.example`).
 
 ## Deploying
 
-The server can serve the built frontend, so one Node web service is enough (for example on Render):
+### Render (free, one click)
 
-- Build command: `npm install && npm run build`
-- Start command: `npm run serve`
-- Environment variables: `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, and `NODE_ENV=production`
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Ikbal-ullah/Try)
+
+1. Click the button and sign in to Render with GitHub.
+2. Render reads `render.yaml` and asks for one value: `LLM_API_KEY`. Paste your key.
+3. Click **Apply**. The first build takes a few minutes; after that every push to `main` deploys automatically.
+
+### Docker (any other host)
+
+```bash
+docker build -t study-assistant .
+```
+
+```bash
+docker run -p 3001:3001 --env-file .env -e TRUST_PROXY=1 study-assistant
+```
+
+The image is a two-stage build: the first stage builds the React app, the second contains only production dependencies and runs as a non-root user.
 
 ## Time spent
 
