@@ -82,7 +82,11 @@ const MOCKS = {
   },
 };
 
-export const mocksEnabled = process.env.NODE_ENV !== 'production';
+// Off unless explicitly switched on: `npm start` passes --dev, and the test
+// runner sets NODE_ENV=test. A server started any other way (including one
+// deployed without NODE_ENV=production by mistake) ignores mock requests.
+export const mocksEnabled =
+  process.env.NODE_ENV !== 'production' && (process.argv.includes('--dev') || process.env.NODE_ENV === 'test');
 
 /** Returns a function to use instead of the model call, or null for "use the real model". */
 export function getMock(name) {
