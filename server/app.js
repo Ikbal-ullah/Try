@@ -55,6 +55,7 @@ export function createApp({
   // ---------- security headers ----------
   app.use(
     helmet({
+      xFrameOptions: { action: 'deny' }, // same rule as frame-ancestors below, for older browsers
       // The browser may only load scripts, styles, fonts and data from this
       // app's own origin. Even if a script were somehow injected into the
       // page, it could not run or send data anywhere else.

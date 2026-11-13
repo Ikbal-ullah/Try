@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
-import { Logo } from './components/Icons.jsx';
+import { ContourLines, Logo } from './components/Icons.jsx';
 import SavedSessions from './components/SavedSessions.jsx';
 import { EmptyState, ErrorState, LoadingState } from './components/StatusViews.jsx';
 import StudySet from './components/StudySet.jsx';
@@ -49,6 +49,11 @@ export default function App() {
   return (
     <div className="app">
       <header className="hero">
+        {/* Purely decorative, so it is hidden from screen readers. */}
+        <div className="hero__art" aria-hidden="true">
+          <div className="orb" />
+          <ContourLines />
+        </div>
         <div className="hero__inner">
           <p className="brand">
             <Logo />
