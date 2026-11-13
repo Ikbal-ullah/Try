@@ -95,6 +95,12 @@ export function createApp({
     res.json({ ok: true });
   });
 
+  // TEMPORARY: shows the caller their own forwarding chain, to find the right
+  // TRUST_PROXY value on the host. Remove once it is set.
+  app.get('/api/debug-proxy', (req, res) => {
+    res.json({ xff: req.get('x-forwarded-for') ?? null, socket: req.socket.remoteAddress, ip: req.ip, trustProxy: trustProxy });
+  });
+
   // Browsers say where a request comes from (Sec-Fetch-Site). Another website
   // must not be able to use our API, and our AI quota, through its visitors.
   app.use('/api', (req, res, next) => {
