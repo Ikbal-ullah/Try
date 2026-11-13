@@ -36,7 +36,7 @@ Other commands:
 
 ### Using a different AI provider
 
-The server calls an OpenAI-compatible `/chat/completions` endpoint, so Gemini, Groq, OpenRouter and a local Ollama all work by changing three lines in `.env`. Examples are in `.env.example`.
+The server calls an OpenAI-compatible `/chat/completions` endpoint, so Gemini, Groq, OpenRouter, OpenAI and a local Ollama all work by changing three lines in `.env`. Examples are in `.env.example`.
 
 ## How to use it
 
@@ -96,6 +96,7 @@ This was the main focus. The rule is: **nothing the model says reaches a compone
 | No response | The server gives up after 30 seconds per attempt; the browser has its own 75-second limit. |
 | Provider overloaded (503) | Retried once on a fallback model, then a "busy right now" message. |
 | Rate limit, provider error, network down | A specific message for each, with **Try again**. |
+| AI account out of credit | Providers report this with the same status as a rate limit (429). The server tells the two apart and shows "unavailable" with no retry button, because retrying cannot work. |
 | Stale response (an older request finishes after a newer one) | The older request is aborted, and its response is ignored because its request id is no longer the latest. |
 | A rendering bug despite all this | An error boundary shows a fallback instead of a blank page. |
 | Corrupted saved data in localStorage | Saved sets go through the same validator when loaded; bad entries are skipped. |

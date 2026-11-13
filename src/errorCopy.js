@@ -9,6 +9,7 @@ const COPY = {
   RATE_LIMITED: { title: 'Too many requests', hint: 'The AI provider asked us to slow down. Wait a minute and try again.' },
   TOO_MANY_REQUESTS: { title: 'Slow down a little', hint: 'You are generating study sets very quickly. Wait a minute and try again.' },
   SERVER_BUSY: { title: 'Lots of people are studying right now', hint: 'The app is at capacity. Try again in a moment.' },
+  QUOTA_EXHAUSTED: { title: 'The AI is unavailable', hint: 'The AI account behind this app has run out of credit, so trying again will not help. Please come back later.', retryable: false },
   OVERLOADED: { title: 'The AI is busy right now', hint: 'The model is overloaded. This usually clears up within a minute.' },
   MALFORMED_JSON: { title: "The AI's answer was garbled", hint: 'We asked twice and could not read either answer. This is usually a one-off, so try again.' },
   WRONG_SHAPE: { title: "The AI's answer was not usable", hint: 'We asked twice and did not get flashcards or questions back. Try again, or reword your notes.' },
