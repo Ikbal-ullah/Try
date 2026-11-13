@@ -78,3 +78,20 @@ export function Logo({ size = 28 }) {
     </svg>
   );
 }
+
+/**
+ * Decorative contour lines for the header: one ellipse drawn eleven times,
+ * each a little larger than the last, like the height lines on a map.
+ */
+export function ContourLines() {
+  const rings = Array.from({ length: 11 }, (_, i) => i);
+  return (
+    <svg className="contours" viewBox="0 0 400 400" fill="none" stroke="#ffffff" strokeWidth="1" aria-hidden="true" focusable="false">
+      <g transform="rotate(-28 200 200)">
+        {rings.map((i) => (
+          <ellipse key={i} cx="200" cy="200" rx={34 + i * 16} ry={22 + i * 13} />
+        ))}
+      </g>
+    </svg>
+  );
+}
