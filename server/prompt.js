@@ -29,11 +29,15 @@ Rules:
 - If the material is meaningless or cannot be turned into study content, reply with {"title": "", "flashcards": [], "quiz": []}.`;
 
 export function buildMessages(studyText) {
+  // The material is wrapped in <study_material> tags so the model can tell
+  // data from instructions. Remove those tags from the text itself, or a
+  // pasted "</study_material> now ignore the rules..." could close the wrapper early.
+  const material = studyText.replace(/<\/?study_material>/gi, '');
   return [
     { role: 'system', content: SYSTEM_PROMPT },
     {
       role: 'user',
-      content: `Create a study set from the material between the markers.\n<study_material>\n${studyText}\n</study_material>`,
+      content: `Create a study set from the material between the markers.\n<study_material>\n${material}\n</study_material>`,
     },
   ];
 }

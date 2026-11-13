@@ -6,7 +6,7 @@
   "description": "Paste notes or a topic, get AI-generated flashcards and a quiz you can actually study with.",
   "scripts": {
     "start": "concurrently -k -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "node --watch server/index.js",
+    "dev:server": "node --watch server/index.js --dev",
     "dev:web": "vite",
     "build": "vite build",
     "serve": "node server/index.js",
