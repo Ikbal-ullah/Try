@@ -44,6 +44,7 @@ The server calls an OpenAI-compatible `/chat/completions` endpoint, so Gemini, G
 2. **Flashcards**: tap a card to flip it. Use Previous, Next and Shuffle, or the ← → keys.
 3. **Quiz**: pick an answer (or press 1–4) to see whether it was right and why. At the end you get a score and a **Re-test wrong answers** button, which starts a new round with only the questions you missed.
 4. Every set you generate is saved under **Recent study sets** and survives a page refresh.
+5. Generating again with the same text gives you a new set.
 
 ## How it works
 
@@ -70,7 +71,8 @@ StudySet ▶ Flashcards / Quiz
 | `server/llm.js` | The only file that touches the API key. Calls the provider with a timeout. |
 | `server/generate.js` | Input checks, model call, validation, one automatic retry. |
 | `server/mocks.js` | Dev-only failure simulator. |
-| `server/app.js` | Express app: security headers, rate limit, concurrency cap, routes, static files. Always answers with JSON. |
+| `server/app.js` | Express app: security headers, rate limits, cache, concurrency cap, routes, static files. Always answers with JSON. |
+| `server/cache.js`, `server/log.js` | The response cache and the structured logger. |
 | `server/index.js` | Starts the server and shuts it down cleanly. |
 | `src/hooks/useGeneration.js` | Loading, error and success state; cancel; timeout; stale-response guard. |
 | `src/hooks/generationReducer.js` | The state machine behind that hook, as a pure function. |
@@ -109,7 +111,7 @@ In development the form has a **Failure simulator** dropdown. Each option replac
 
 To see the stale-response guard: choose **Slow (8s)** and generate, then within 8 seconds choose **Good response** and generate again. The second result appears, and the slow one never overwrites it.
 
-The simulator is hidden in production builds, and the server ignores it when `NODE_ENV=production`.
+The simulator is opt-in: `npm start` switches it on with a `--dev` flag. It is hidden in production builds, and a server started any other way ignores it.
 
 ## Decisions and trade-offs
 
@@ -139,7 +141,7 @@ What I did myself: _[fill in honestly, for example: chose the Study assistant op
 - **Free-tier limits.** Free models are sometimes overloaded or rate limited. The app reports this clearly but cannot fix it.
 - **Prompt injection is only mitigated.** Notes are wrapped in markers and the model is told to treat them as data, which reduces but does not eliminate the risk. The worst case is odd study content, since the output is still validated and rendered as plain text.
 - **The real capacity limit is the AI quota.** The server itself handles thousands of requests per second, but a free AI key allows only a handful of generations per minute. Under real traffic the fix is a paid key, not more servers.
-- **Rate limiting is per server instance.** The limiter keeps its counters in memory, which is correct for one instance. Running several instances would need a shared store such as Redis.
+- **Limits and cache are per server instance.** They live in memory, which is exact for one instance. With several instances each keeps its own counts, so the effective limit is multiplied; a shared store such as Redis would fix that.
 - **Free hosting sleeps.** On Render's free plan the service stops after 15 minutes without visitors, and the next visit waits about a minute while it wakes up.
 - **Saved sets are per browser.** There are no accounts and no sync.
 - **Tests cover logic and the HTTP API, not components.** Component behaviour was checked with a scripted browser run, which is not part of the repository.
@@ -149,9 +151,45 @@ What I did myself: _[fill in honestly, for example: chose the Study assistant op
 1. Stream the response and show cards as they arrive.
 2. A refinement prompt ("make the quiz harder", "add 5 more cards") that edits the current set.
 3. Save quiz progress and scores per set.
-4. Cache results for identical input on the server, to save AI quota under load.
+4. Move the rate limits and cache to a shared store (Redis) so they stay exact across several instances.
 5. Component tests with React Testing Library.
 6. Error tracking (for example Sentry) and an uptime monitor on `/api/health`.
+
+## Design
+
+The look is a dark "aurora" theme: soft coloured light on charcoal, with a gradient orb and contour lines in the header.
+
+Colour follows the 60 / 30 / 10 rule:
+
+| Share | Colour | Used for |
+|---|---|---|
+| 60% | Charcoal `#0f0e13` | Background and card surfaces |
+| 30% | Violet `#a59cff` | Focus rings, hover and selected states, step numbers, the cool end of the gradient |
+| 10% | Pink `#ff8fcf` | The "pop": the main button, progress bars, the question side of a flashcard |
+
+Violet and pink are neighbours on the colour wheel (an analogous pair), so they blend into one smooth gradient, and pink, the warmer and lighter of the two, is where the eye lands. That is why it marks the one primary action in each view. A faint peach glow in the background is ambient light only; no control or text uses it. Green and red appear only as status colours, always with an icon or a label, so colour is never the only signal.
+
+- **Contrast**: every text pair meets WCAG AA. Body text on a card is 15.6:1, secondary text 8.4:1, and the dark text on the gradient button is at least 6.4:1 at its darkest point.
+- **Type**: Inter for the interface and Instrument Serif for headlines and card text. Both are bundled with the app, so there are no requests to a font service.
+- **One theme**: the look depends on a dark background, so there is no light mode.
+- **Motion**: the card flip and entrance animations switch off for users who ask their system to reduce motion.
+
+## Security
+
+| Risk | Protection |
+|---|---|
+| Leaked API key | Read from the environment on the server only. Not in the repository, its history, the browser bundle or the Docker image. |
+| Injected script (XSS) | React escapes all model output and the app never renders HTML from it. The Content-Security-Policy allows scripts, styles, fonts and requests from the app's own origin only, with no inline code. |
+| Clickjacking | The app refuses to load inside a frame (`frame-ancestors 'none'`). |
+| Another site using the API through its visitors | Requests the browser marks as cross-site are refused, and no CORS headers are sent. |
+| Quota abuse | Per-visitor limits (10 a minute, 100 a day), a cap on simultaneous model calls, and a 32 KB limit on request bodies. |
+| Prompt injection | Notes are wrapped in tags, the tags are stripped from the notes themselves, and the model is told to treat them as data. Whatever comes back is still validated and shown as plain text. |
+| Leaking internals | Unexpected errors return a generic message and a request id. Details stay in the server log. The visitor's text is never logged. |
+| Dev tools in production | The failure simulator is off unless the server is started with `--dev`. |
+| Vulnerable dependencies | CI fails on a high-severity `npm audit` finding, and Dependabot proposes updates weekly. |
+| Container breakout | The Docker image runs as a non-root user and contains production dependencies only. |
+
+There are no accounts, cookies or database, so there is no session, password or personal data to protect, and cross-site request forgery does not apply.
 
 ## Production setup
 
@@ -159,18 +197,16 @@ One Node process serves both the API and the built React app, so the frontend an
 
 | Concern | What is in place |
 |---|---|
-| Secrets | The API key is an environment variable on the host. It is not in the repository, the browser bundle or the Docker image. |
-| Abuse | `/api/generate` is rate limited per visitor (10 per minute by default) and answers `429` with a clear message. |
+| Repeated requests | A recent identical request is answered from an in-memory cache (200 entries, one hour) in about a millisecond, with no AI call. Asking again for the set on screen skips the cache. |
 | Traffic spikes | At most 8 model calls run at once across all visitors. Beyond that the server answers "busy" immediately instead of queueing requests until they time out. |
-| Wasted quota | If a visitor cancels or leaves, the model call is aborted. Request bodies over 32 KB are rejected before any work is done. |
-| Security headers | `helmet` sets a Content-Security-Policy that only allows scripts and requests to the app's own origin, plus HSTS and the usual hardening headers. |
-| Speed | Responses are gzip compressed (the JS bundle is 98 KB over the wire). Hashed assets are cached for a year; `index.html` is always revalidated so a new deploy shows up immediately. |
+| Wasted quota | If a visitor cancels or leaves, the model call is aborted. |
+| Speed | Responses are gzip compressed. Hashed assets are cached for a year; `index.html` is always revalidated so a new deploy shows up immediately. |
+| Load balancers | Keep-alive is longer than a load balancer's idle timeout, which avoids random 502 errors. `TRUST_PROXY` tells the server how many proxies are in front so limits apply to the real visitor. |
 | Deploys | The server handles `SIGTERM`: it stops accepting requests, lets running ones finish, then exits. `/api/health` is the health check. |
-| Logs | One line per generation with outcome and duration. The visitor's text is never logged. |
-| Dev-only code | The failure simulator is hidden in production builds and ignored by the server when `NODE_ENV=production`. |
-| CI | GitHub Actions runs the tests and the build on every push and pull request. |
+| Logs | One JSON line per generation with a request id, outcome and duration. The same id is in the `X-Request-Id` header and in error messages, so a user's report can be matched to a log line. |
+| CI | GitHub Actions runs the tests, a dependency audit and the build on every push and pull request. |
 
-The limits are settings, not code: `RATE_LIMIT_PER_MINUTE`, `MAX_CONCURRENT_GENERATIONS` and `TRUST_PROXY` (see `.env.example`).
+The limits are settings, not code: `RATE_LIMIT_PER_MINUTE`, `RATE_LIMIT_PER_DAY`, `MAX_CONCURRENT_GENERATIONS` and `TRUST_PROXY` (see `.env.example`).
 
 ## Deploying
 
@@ -181,6 +217,10 @@ The limits are settings, not code: `RATE_LIMIT_PER_MINUTE`, `MAX_CONCURRENT_GENE
 1. Click the button and sign in to Render with GitHub.
 2. Render reads `render.yaml` and asks for one value: `LLM_API_KEY`. Paste your key.
 3. Click **Apply**. The first build takes a few minutes; after that every push to `main` deploys automatically.
+
+### AWS
+
+Step-by-step instructions for running the Docker image on Amazon ECS Express Mode (Fargate behind a load balancer, with an HTTPS address) are in [docs/aws.md](docs/aws.md).
 
 ### Docker (any other host)
 
