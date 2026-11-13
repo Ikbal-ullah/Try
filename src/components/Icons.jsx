@@ -80,18 +80,29 @@ export function Logo({ size = 28 }) {
 }
 
 /**
- * Decorative contour lines for the header: one ellipse drawn eleven times,
- * each a little larger than the last, like the height lines on a map.
+ * Header artwork: a fanned stack of flashcards with a score chip. It is drawn
+ * with plain elements and CSS (no image file), and it is abstract on purpose:
+ * bars stand in for text, so it stays crisp at any size.
  */
-export function ContourLines() {
-  const rings = Array.from({ length: 11 }, (_, i) => i);
+export function HeroDeck() {
   return (
-    <svg className="contours" viewBox="0 0 400 400" fill="none" stroke="#ffffff" strokeWidth="1" aria-hidden="true" focusable="false">
-      <g transform="rotate(-28 200 200)">
-        {rings.map((i) => (
-          <ellipse key={i} cx="200" cy="200" rx={34 + i * 16} ry={22 + i * 13} />
-        ))}
-      </g>
-    </svg>
+    <div className="deck">
+      <div className="deck__card deck__card--back" />
+      <div className="deck__card deck__card--mid" />
+      <div className="deck__card deck__card--front">
+        <span className="deck__bar deck__bar--tag" />
+        <span className="deck__bar" />
+        <span className="deck__bar deck__bar--short" />
+        <span className="deck__badge">
+          <Flip />
+        </span>
+      </div>
+      <div className="deck__chip">
+        <span className="deck__chip-icon">
+          <Check />
+        </span>
+        4 of 5 correct
+      </div>
+    </div>
   );
 }
