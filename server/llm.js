@@ -24,7 +24,12 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
     throw new AppError('CONFIG', 'The server is missing its AI settings. Copy .env.example to .env and add your API key.');
   }
 
-  const body = { model, messages, temperature: 0.4 };
+  const body = { model, messages };
+  // A low temperature makes the output more predictable. Some models only
+  // accept their default, so LLM_TEMPERATURE=off leaves the setting out.
+  if (process.env.LLM_TEMPERATURE !== 'off') {
+    body.temperature = Number(process.env.LLM_TEMPERATURE) || 0.4;
+  }
   // JSON mode asks the provider to return syntactically valid JSON.
   // It does not guarantee OUR shape, so we still validate afterwards.
   if (process.env.LLM_JSON_MODE !== 'off') {
@@ -54,6 +59,14 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
   }
 
   if (response.status === 429) {
+    // 429 means two different things: "slow down" (waiting helps) and
+    // "this account is out of credit" (waiting does not). Tell them apart so
+    // the user is not told to retry something that cannot work.
+    const detail = await response.text().catch(() => '');
+    if (/insufficient_quota|no credits|billing/i.test(detail)) {
+      console.error('[llm] the AI account is out of credit or quota');
+      throw new AppError('QUOTA_EXHAUSTED', 'The AI account behind this app has run out of credit.');
+    }
     throw new AppError('RATE_LIMITED', 'The AI provider is rate-limiting requests. Wait a moment and try again.');
   }
   if (response.status === 503 || response.status === 529) {
