@@ -151,12 +151,26 @@ ul {
   position: relative; /* above the artwork */
 }
 
-/* Decorative artwork: a fanned stack of flashcards. Every size inside it is
-   in em, so changing the deck's font-size scales the whole drawing. */
+/* Decorative artwork: contour lines with a fanned stack of flashcards on top.
+   Every size inside the deck is in em, so changing its font-size scales the
+   whole drawing. */
 .hero__art {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+/* The rings are centred on the cards and fade out toward their edges, so
+   the cards look like they float over them and no line runs through text. */
+.contours {
+  position: absolute;
+  top: -95px;
+  right: -70px;
+  width: 300px;
+  height: 300px;
+  opacity: 0.5;
+  -webkit-mask-image: radial-gradient(closest-side, #000 35%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 35%, transparent 100%);
 }
 
 .deck {
@@ -1192,6 +1206,15 @@ progress::-moz-progress-bar {
 
 /* Wide screens have room for the artwork beside the headline. */
 @media (min-width: 900px) {
+  .contours {
+    top: 50%;
+    right: calc(max(64px, 50% - 370px) - 155px); /* the deck's right edge, shifted to centre the rings on it */
+    width: 560px;
+    height: 560px;
+    margin-top: -300px;
+    opacity: 0.6;
+  }
+
   .deck {
     top: 50%;
     right: max(64px, calc(50% - 370px));
