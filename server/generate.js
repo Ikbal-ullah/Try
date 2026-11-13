@@ -34,7 +34,7 @@ export async function generateStudySet({ text, mock, signal }) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
-      const rawText = mockCall ? await mockCall(signal) : await callModel(messages, { signal });
+      const rawText = mockCall ? await mockCall(signal) : await callModel(messages, { signal, attempt });
       const { studySet, warnings } = parseStudySet(rawText);
       return { studySet, warnings, attempts: attempt };
     } catch (err) {
