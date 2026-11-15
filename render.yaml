@@ -16,8 +16,11 @@ services:
         value: production
       - key: NODE_VERSION
         value: "22"
+      # Measured on Render: visitor -> Cloudflare -> Render load balancer ->
+      # local proxy -> app. Three hops, so the visitor is the 3rd address from
+      # the right of X-Forwarded-For; anything further left could be faked.
       - key: TRUST_PROXY
-        value: "1"
+        value: "3"
       - key: LLM_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai
       - key: LLM_MODEL

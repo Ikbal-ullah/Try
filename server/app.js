@@ -35,9 +35,10 @@ function cacheKeyFor(text) {
 }
 
 export function createApp({
-  // How many proxies sit in front of us (1 behind a load balancer, 2 behind a
-  // CDN plus a load balancer). Needed so rate limiting sees the visitor's IP
-  // instead of the proxy's.
+  // How many proxies sit in front of us. Needed so rate limiting sees the
+  // visitor's IP instead of a proxy's, and so a faked X-Forwarded-For header is
+  // ignored. Measured, not guessed: 3 on Render (Cloudflare, Render's load
+  // balancer, a local proxy), 1 behind a single AWS load balancer.
   trustProxy = Number(process.env.TRUST_PROXY) || 0,
   // Per-visitor limits on generations. Each one costs AI quota.
   rateLimitPerMinute = Number(process.env.RATE_LIMIT_PER_MINUTE) || 10,
@@ -93,12 +94,6 @@ export function createApp({
 
   app.get('/api/health', (req, res) => {
     res.json({ ok: true });
-  });
-
-  // TEMPORARY: shows the caller their own forwarding chain, to find the right
-  // TRUST_PROXY value on the host. Remove once it is set.
-  app.get('/api/debug-proxy', (req, res) => {
-    res.json({ xff: req.get('x-forwarded-for') ?? null, socket: req.socket.remoteAddress, ip: req.ip, trustProxy: trustProxy });
   });
 
   // Browsers say where a request comes from (Sec-Fetch-Site). Another website

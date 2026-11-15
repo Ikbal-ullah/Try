@@ -119,6 +119,23 @@ describe('POST /api/generate', () => {
     expect((await third.json()).error.code).toBe('TOO_MANY_REQUESTS');
   });
 
+  it('limits each visitor separately behind proxies, and ignores a faked forwarding header', async () => {
+    // The chain measured on Render: visitor, Cloudflare, Render's load balancer
+    // in X-Forwarded-For, and a local proxy as the direct connection.
+    const post = await start({ trustProxy: 3, rateLimitPerMinute: 1 });
+    const body = JSON.stringify({ text: 'hooks' });
+    const via = (visitor, cloudflare, balancer) => ({ 'X-Forwarded-For': `${visitor}, ${cloudflare}, ${balancer}` });
+
+    expect((await post(body, via('198.51.100.1', '104.22.0.1', '10.0.0.1'))).status).toBe(200);
+    // Same visitor, different proxies on the way: still the same visitor.
+    expect((await post(body, via('198.51.100.1', '172.69.0.9', '10.0.0.7'))).status).toBe(429);
+    // A different visitor has their own limit.
+    expect((await post(body, via('198.51.100.2', '104.22.0.1', '10.0.0.1'))).status).toBe(200);
+    // Putting a fake address in front does not reset the limit.
+    const spoofed = { 'X-Forwarded-For': '203.0.113.7, 198.51.100.1, 104.22.0.1, 10.0.0.1' };
+    expect((await post(body, spoofed)).status).toBe(429);
+  });
+
   it('enforces the daily limit separately from the per-minute limit', async () => {
     const post = await start({ rateLimitPerMinute: 50, rateLimitPerDay: 1 });
     const body = JSON.stringify({ text: 'hooks' });
