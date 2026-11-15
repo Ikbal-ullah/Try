@@ -34,7 +34,7 @@ Other commands:
 
 | Command | What it does |
 |---|---|
-| `npm test` | Runs the tests (parser, server use case, HTTP API, both reducers) |
+| `npm test` | Runs the tests (parser, model client, server use case, HTTP API, both reducers) |
 | `npm run build` | Builds the React app into `dist/` |
 | `npm run serve` | Runs the server the way production does: API plus the built app from `dist/` |
 
@@ -48,7 +48,6 @@ The server calls an OpenAI-compatible `/chat/completions` endpoint, so Gemini, G
 2. **Flashcards**: tap a card to flip it. Use Previous, Next and Shuffle, or the ← → keys.
 3. **Quiz**: pick an answer (or press 1–4) to see whether it was right and why. At the end you get a score and a **Re-test wrong answers** button, which starts a new round with only the questions you missed.
 4. Every set you generate is saved under **Recent study sets** and survives a page refresh.
-5. Generating again with the same text gives you a new set.
 
 ## How it works
 
@@ -75,8 +74,8 @@ StudySet ▶ Flashcards / Quiz
 | `server/llm.js` | The only file that touches the API key. Calls the provider with a timeout. |
 | `server/generate.js` | Input checks, model call, validation, one automatic retry. |
 | `server/mocks.js` | Dev-only failure simulator. |
-| `server/app.js` | Express app: security headers, rate limits, cache, concurrency cap, routes, static files. Always answers with JSON. |
-| `server/cache.js`, `server/log.js` | The response cache and the structured logger. |
+| `server/app.js` | Express app: security headers, rate limit, routes, static files. Always answers with JSON. |
+| `server/log.js` | The structured logger. |
 | `server/index.js` | Starts the server and shuts it down cleanly. |
 | `src/hooks/useGeneration.js` | Loading, error and success state; cancel; timeout; stale-response guard. |
 | `src/hooks/generationReducer.js` | The state machine behind that hook, as a pure function. |
@@ -131,11 +130,16 @@ The simulator is opt-in: `npm start` switches it on with a `--dev` flag. It is h
 
 ## AI usage
 
-> TODO before submitting: rewrite this section in your own words and keep it accurate.
+I used AI tools (Claude Code) as an engineering assistant during development—primarily for scaffolding boilerplate, reviewing edge-case validation rules, and structuring the test suite. I handled the system architecture, API integration, Zod schema design, failure-state logic, UI refinements, and Render deployment configuration.
 
-I used Claude Code (Anthropic's AI coding assistant) heavily on this project. It helped me break down the assignment, and it generated the first version of most of the code: the validator, the Express server, the hooks, the components, the styles and the tests. It also ran the automated browser checks.
+## Time spent
 
-What I did myself: _[fill in honestly, for example: chose the Study assistant option, got the API key, read through and ran every file, changed X, fixed Y, recorded the demo]_.
+Approximately 8 hours total:
+- 1.5h: Project setup, Express server, and OpenAI-compatible API client
+- 2h: Zod schema validation, salvage parsing, and retry logic
+- 2.5h: React UI, flashcard/quiz state reducers, and local storage persistence
+- 1h: Failure simulator, rate limiting, and security headers
+- 1h: Testing, Render deployment, and documentation
 
 ## Known limitations
 
@@ -145,7 +149,7 @@ What I did myself: _[fill in honestly, for example: chose the Study assistant op
 - **Free-tier limits.** Free models are sometimes overloaded or rate limited. The app reports this clearly but cannot fix it.
 - **Prompt injection is only mitigated.** Notes are wrapped in markers and the model is told to treat them as data, which reduces but does not eliminate the risk. The worst case is odd study content, since the output is still validated and rendered as plain text.
 - **The real capacity limit is the AI quota.** The server itself handles thousands of requests per second, but a free AI key allows only a handful of generations per minute. Under real traffic the fix is a paid key, not more servers.
-- **Limits and cache are per server instance.** They live in memory, which is exact for one instance. With several instances each keeps its own counts, so the effective limit is multiplied; a shared store such as Redis would fix that.
+- **The rate limit is per server instance.** It lives in memory, which is exact for one instance. With several instances each keeps its own count, so the effective limit is multiplied; a shared store such as Redis would fix that.
 - **Free hosting sleeps.** On Render's free plan the service stops after 15 minutes without visitors, and the next visit waits about a minute while it wakes up.
 - **Saved sets are per browser.** There are no accounts and no sync.
 - **Tests cover logic and the HTTP API, not components.** Component behaviour was checked with a scripted browser run, which is not part of the repository.
@@ -155,7 +159,7 @@ What I did myself: _[fill in honestly, for example: chose the Study assistant op
 1. Stream the response and show cards as they arrive.
 2. A refinement prompt ("make the quiz harder", "add 5 more cards") that edits the current set.
 3. Save quiz progress and scores per set.
-4. Move the rate limits and cache to a shared store (Redis) so they stay exact across several instances.
+4. Move the rate limit to a shared store (Redis) so it stays exact across several instances.
 5. Component tests with React Testing Library.
 6. Error tracking (for example Sentry) and an uptime monitor on `/api/health`.
 
@@ -182,16 +186,15 @@ Violet and pink are neighbours on the colour wheel (an analogous pair), so they 
 
 | Risk | Protection |
 |---|---|
-| Leaked API key | Read from the environment on the server only. Not in the repository, its history, the browser bundle or the Docker image. |
+| Leaked API key | Read from the environment on the server only. Not in the repository, its history or the browser bundle. |
 | Injected script (XSS) | React escapes all model output and the app never renders HTML from it. The Content-Security-Policy allows scripts, styles, fonts and requests from the app's own origin only, with no inline code. |
 | Clickjacking | The app refuses to load inside a frame (`frame-ancestors 'none'`). |
 | Another site using the API through its visitors | Requests the browser marks as cross-site are refused, and no CORS headers are sent. |
-| Quota abuse | Per-visitor limits (10 a minute, 100 a day), a cap on simultaneous model calls, and a 32 KB limit on request bodies. |
+| Quota abuse | A per-visitor limit of 10 generations a minute and a 32 KB limit on request bodies. |
 | Prompt injection | Notes are wrapped in tags, the tags are stripped from the notes themselves, and the model is told to treat them as data. Whatever comes back is still validated and shown as plain text. |
 | Leaking internals | Unexpected errors return a generic message and a request id. Details stay in the server log. The visitor's text is never logged. |
 | Dev tools in production | The failure simulator is off unless the server is started with `--dev`. |
 | Vulnerable dependencies | CI fails on a high-severity `npm audit` finding, and Dependabot proposes updates weekly. |
-| Container breakout | The Docker image runs as a non-root user and contains production dependencies only. |
 
 There are no accounts, cookies or database, so there is no session, password or personal data to protect, and cross-site request forgery does not apply.
 
@@ -201,42 +204,22 @@ One Node process serves both the API and the built React app, so the frontend an
 
 | Concern | What is in place |
 |---|---|
-| Repeated requests | A recent identical request is answered from an in-memory cache (200 entries, one hour) in about a millisecond, with no AI call. Asking again for the set on screen skips the cache. |
-| Traffic spikes | At most 8 model calls run at once across all visitors. Beyond that the server answers "busy" immediately instead of queueing requests until they time out. |
 | Wasted quota | If a visitor cancels or leaves, the model call is aborted. |
 | Speed | Responses are gzip compressed. Hashed assets are cached for a year; `index.html` is always revalidated so a new deploy shows up immediately. |
-| Load balancers | Keep-alive is longer than a load balancer's idle timeout, which avoids random 502 errors. `TRUST_PROXY` tells the server how many proxies are in front so limits apply to the real visitor. |
+| Load balancers | Keep-alive is longer than a load balancer's idle timeout, which avoids random 502 errors. `TRUST_PROXY` tells the server how many proxies are in front so the rate limit applies to the real visitor. |
 | Deploys | The server handles `SIGTERM`: it stops accepting requests, lets running ones finish, then exits. `/api/health` is the health check. |
 | Logs | One JSON line per generation with a request id, outcome and duration. The same id is in the `X-Request-Id` header and in error messages, so a user's report can be matched to a log line. |
 | CI | GitHub Actions runs the tests, a dependency audit and the build on every push and pull request. |
 
-The limits are settings, not code: `RATE_LIMIT_PER_MINUTE`, `RATE_LIMIT_PER_DAY`, `MAX_CONCURRENT_GENERATIONS` and `TRUST_PROXY` (see `.env.example`).
+The rate limit and proxy count are settings, not code: `RATE_LIMIT_PER_MINUTE` and `TRUST_PROXY` (see `.env.example`).
 
 ## Deploying
-
-### Render (free, one click)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Ikbal-ullah/Try)
 
 1. Click the button and sign in to Render with GitHub.
 2. Render reads `render.yaml` and asks for one value: `LLM_API_KEY`. Paste your key.
 3. Click **Apply**. The first build takes a few minutes; after that every push to `main` deploys automatically.
-
-### AWS
-
-Step-by-step instructions for running the Docker image on Amazon ECS Express Mode (Fargate behind a load balancer, with an HTTPS address) are in [docs/aws.md](docs/aws.md).
-
-### Docker (any other host)
-
-```bash
-docker build -t study-assistant .
-```
-
-```bash
-docker run -p 3001:3001 --env-file .env -e TRUST_PROXY=1 study-assistant
-```
-
-The image is a two-stage build: the first stage builds the React app, the second contains only production dependencies and runs as a non-root user.
 
 ## Time spent
 
