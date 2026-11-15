@@ -1,8 +1,7 @@
-// Entry point: load settings, start the server, shut down cleanly.
-
 import 'dotenv/config';
-import { createApp, mocksEnabled } from './app.js';
+import { createApp } from './app.js';
 import { log } from './log.js';
+import { mocksEnabled } from './mocks.js';
 
 const port = Number(process.env.PORT) || 3001;
 const server = createApp().listen(port, () => {

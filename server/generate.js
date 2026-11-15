@@ -41,8 +41,8 @@ export async function generateStudySet({ text, mock, signal }) {
     } catch (err) {
       // Only errors we understand are candidates for a retry; anything else
       // (including "the browser cancelled") goes straight to the caller.
-      const known = err instanceof StudySetError || err instanceof AppError;
-      if (!known || signal?.aborted) throw err;
+      const isKnownError = err instanceof StudySetError || err instanceof AppError;
+      if (!isKnownError || signal?.aborted) throw err;
       lastError = err;
       log('warn', 'generate.attempt_failed', { attempt, code: err.code });
       if (!RETRYABLE.has(err.code) || attempt === MAX_ATTEMPTS) break;

@@ -25,21 +25,18 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
     throw new AppError('CONFIG', 'The server is missing its AI settings. Copy .env.example to .env and add your API key.');
   }
 
-  const body = { model, messages };
+  // JSON mode asks the provider to return syntactically valid JSON.
+  // It does not guarantee OUR shape, so we still validate afterwards.
+  const requestBody = { model, messages, response_format: { type: 'json_object' } };
   // A low temperature makes the output more predictable. Some models only
   // accept their default, so LLM_TEMPERATURE=off leaves the setting out.
   if (process.env.LLM_TEMPERATURE !== 'off') {
-    body.temperature = Number(process.env.LLM_TEMPERATURE) || 0.4;
-  }
-  // JSON mode asks the provider to return syntactically valid JSON.
-  // It does not guarantee OUR shape, so we still validate afterwards.
-  if (process.env.LLM_JSON_MODE !== 'off') {
-    body.response_format = { type: 'json_object' };
+    requestBody.temperature = Number(process.env.LLM_TEMPERATURE) || 0.4;
   }
 
   // Abort when either our timeout fires or the caller cancels.
-  const timeout = AbortSignal.timeout(timeoutMs);
-  const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
   let response;
   try {
@@ -49,11 +46,11 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(body),
-      signal: combined,
+      body: JSON.stringify(requestBody),
+      signal: requestSignal,
     });
   } catch (err) {
-    if (timeout.aborted) throw new AppError('TIMEOUT', 'The AI took too long to respond.');
+    if (timeoutSignal.aborted) throw new AppError('TIMEOUT', 'The AI took too long to respond.');
     if (signal?.aborted) throw err; // caller cancelled; nobody is listening for the answer
     log('error', 'llm.network_error', { model, reason: err.message });
     throw new AppError('PROVIDER_ERROR', 'Could not reach the AI provider.');
@@ -63,8 +60,8 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
     // 429 means two different things: "slow down" (waiting helps) and
     // "this account is out of credit" (waiting does not). Tell them apart so
     // the user is not told to retry something that cannot work.
-    const detail = await response.text().catch(() => '');
-    if (/insufficient_quota|no credits|billing/i.test(detail)) {
+    const errorText = await response.text().catch(() => '');
+    if (/insufficient_quota|no credits|billing/i.test(errorText)) {
       log('error', 'llm.quota_exhausted', { model });
       throw new AppError('QUOTA_EXHAUSTED', 'The AI account behind this app has run out of credit.');
     }
@@ -75,20 +72,20 @@ export async function callModel(messages, { signal, attempt = 1 } = {}) {
   }
   if (!response.ok) {
     // Log the provider's detail on the server; send the browser a safe summary.
-    const detail = await response.text().catch(() => '');
-    log('error', 'llm.provider_error', { model, status: response.status, detail: detail.slice(0, 300) });
+    const errorText = await response.text().catch(() => '');
+    log('error', 'llm.provider_error', { model, status: response.status, detail: errorText.slice(0, 300) });
     throw new AppError('PROVIDER_ERROR', `The AI provider returned an error (${response.status}).`);
   }
 
-  let payload;
+  let responseBody;
   try {
-    payload = await response.json();
+    responseBody = await response.json();
   } catch {
-    if (timeout.aborted) throw new AppError('TIMEOUT', 'The AI took too long to respond.');
+    if (timeoutSignal.aborted) throw new AppError('TIMEOUT', 'The AI took too long to respond.');
     throw new AppError('PROVIDER_ERROR', 'The AI provider sent an unreadable response.');
   }
 
-  const content = payload?.choices?.[0]?.message?.content;
+  const content = responseBody?.choices?.[0]?.message?.content;
   if (typeof content !== 'string' || content.trim() === '') {
     throw new AppError('EMPTY_RESULT', 'The AI returned an empty response.');
   }

@@ -8,7 +8,7 @@
 
 import { AppError } from './errors.js';
 
-const sample = {
+const sampleStudySet = {
   title: 'React hooks basics',
   flashcards: [
     { front: 'What does useState return?', back: 'An array with the current state value and a function to update it.' },
@@ -48,24 +48,24 @@ const wait = (ms, signal) =>
   });
 
 const MOCKS = {
-  ok: async () => JSON.stringify(sample),
+  ok: async () => JSON.stringify(sampleStudySet),
   // Valid JSON but wrapped the way chatty models like to wrap it. Should succeed.
-  fenced: async () => 'Sure! Here is your study set:\n```json\n' + JSON.stringify(sample, null, 2) + '\n```\nHappy studying!',
+  fenced: async () => 'Sure! Here is your study set:\n```json\n' + JSON.stringify(sampleStudySet, null, 2) + '\n```\nHappy studying!',
   // Some items are broken. Should succeed with a warning about skipped items.
   partial: async () =>
     JSON.stringify({
-      ...sample,
-      flashcards: [...sample.flashcards, { front: 'Card with no back' }, 'not even an object'],
-      quiz: [...sample.quiz, { question: 'Broken?', options: ['Yes', 'No'], answerIndex: 9, explanation: '' }],
+      ...sampleStudySet,
+      flashcards: [...sampleStudySet.flashcards, { front: 'Card with no back' }, 'not even an object'],
+      quiz: [...sampleStudySet.quiz, { question: 'Broken?', options: ['Yes', 'No'], answerIndex: 9, explanation: '' }],
     }),
   // Output cut off mid-way, e.g. the model hit its token limit.
-  malformed: async () => JSON.stringify(sample).slice(0, 180),
+  malformed: async () => JSON.stringify(sampleStudySet).slice(0, 180),
   // Valid JSON, wrong structure.
   'wrong-shape': async () => JSON.stringify({ answer: 'Hooks let you use state in function components.' }),
   empty: async () => JSON.stringify({ title: '', flashcards: [], quiz: [] }),
   slow: async (signal) => {
     await wait(8000, signal);
-    return JSON.stringify({ ...sample, title: 'Slow response (8s)' });
+    return JSON.stringify({ ...sampleStudySet, title: 'Slow response (8s)' });
   },
   timeout: async (signal) => {
     await wait(4000, signal);
