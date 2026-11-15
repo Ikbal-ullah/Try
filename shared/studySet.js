@@ -21,8 +21,6 @@ export class StudySetError extends Error {
   }
 }
 
-// ---------- Step 1: get a JavaScript value out of the model's text ----------
-
 /**
  * Models often wrap JSON in ```json fences or add a sentence before/after it.
  * We try the strict parse first, then progressively more forgiving ones.
@@ -54,13 +52,11 @@ export function extractJson(rawText) {
   throw new StudySetError('MALFORMED_JSON', 'The AI response was not valid JSON.');
 }
 
-// ---------- Step 2: check the shape, item by item ----------
-
-const text = (max) => z.string().trim().min(1).max(max);
+const nonEmptyText = (maxChars) => z.string().trim().min(1).max(maxChars);
 
 const FlashcardSchema = z.object({
-  front: text(300),
-  back: text(600),
+  front: nonEmptyText(300),
+  back: nonEmptyText(600),
 });
 
 // Accept 2 or "2" for the answer index, but nothing else. We deliberately do
@@ -73,47 +69,47 @@ const AnswerIndexSchema = z.union([
 
 const QuizQuestionSchema = z
   .object({
-    question: text(400),
-    options: z.array(text(200)).min(2).max(6),
+    question: nonEmptyText(400),
+    options: z.array(nonEmptyText(200)).min(2).max(6),
     answerIndex: AnswerIndexSchema,
     explanation: z.string().trim().max(600).catch(''),
   })
-  .refine((q) => q.answerIndex < q.options.length, {
+  .refine((question) => question.answerIndex < question.options.length, {
     message: 'answerIndex points outside the options list',
   })
-  .refine((q) => new Set(q.options.map((o) => o.toLowerCase())).size === q.options.length, {
+  .refine((question) => new Set(question.options.map((option) => option.toLowerCase())).size === question.options.length, {
     message: 'duplicate options',
   });
 
 /** Keep the valid items, count the invalid ones. One bad card should not sink the whole set. */
-function salvage(list, schema, max) {
+function salvage(items, schema, maxItems) {
   const kept = [];
   let dropped = 0;
-  for (const item of list) {
+  for (const item of items) {
     const result = schema.safeParse(item);
     if (result.success) kept.push(result.data);
     else dropped += 1;
   }
-  return { kept: kept.slice(0, max), dropped };
+  return { kept: kept.slice(0, maxItems), dropped };
 }
 
 /**
- * Validate and clean a parsed value.
+ * Validate and clean a parsed (but still untrusted) study set.
  * Returns { studySet, warnings } or throws StudySetError (WRONG_SHAPE | EMPTY_RESULT).
  */
-export function normalizeStudySet(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+export function normalizeStudySet(rawStudySet) {
+  if (rawStudySet === null || typeof rawStudySet !== 'object' || Array.isArray(rawStudySet)) {
     throw new StudySetError('WRONG_SHAPE', 'The AI response was not in the expected format.');
   }
 
-  const hasCards = Array.isArray(value.flashcards);
-  const hasQuiz = Array.isArray(value.quiz);
+  const hasCards = Array.isArray(rawStudySet.flashcards);
+  const hasQuiz = Array.isArray(rawStudySet.quiz);
   if (!hasCards && !hasQuiz) {
     throw new StudySetError('WRONG_SHAPE', 'The AI response was missing flashcards and quiz questions.');
   }
 
-  const cards = salvage(hasCards ? value.flashcards : [], FlashcardSchema, LIMITS.flashcards);
-  const quiz = salvage(hasQuiz ? value.quiz : [], QuizQuestionSchema, LIMITS.quiz);
+  const cards = salvage(hasCards ? rawStudySet.flashcards : [], FlashcardSchema, LIMITS.flashcards);
+  const quiz = salvage(hasQuiz ? rawStudySet.quiz : [], QuizQuestionSchema, LIMITS.quiz);
 
   if (cards.kept.length === 0 && quiz.kept.length === 0) {
     // Everything was invalid -> shape problem. Nothing was sent at all -> empty.
@@ -128,8 +124,8 @@ export function normalizeStudySet(value) {
   if (quiz.dropped > 0) warnings.push(`${quiz.dropped} quiz question(s) were skipped because they were invalid.`);
 
   const title =
-    typeof value.title === 'string' && value.title.trim() !== ''
-      ? value.title.trim().slice(0, 120)
+    typeof rawStudySet.title === 'string' && rawStudySet.title.trim() !== ''
+      ? rawStudySet.title.trim().slice(0, 120)
       : 'Study set';
 
   return {
@@ -138,7 +134,7 @@ export function normalizeStudySet(value) {
       // We assign ids ourselves. Model-provided ids can be missing or duplicated,
       // and React keys / quiz bookkeeping need them to be stable and unique.
       flashcards: cards.kept.map((card, i) => ({ id: `card-${i}`, ...card })),
-      quiz: quiz.kept.map((q, i) => ({ id: `q-${i}`, ...q })),
+      quiz: quiz.kept.map((question, i) => ({ id: `q-${i}`, ...question })),
     },
     warnings,
   };
