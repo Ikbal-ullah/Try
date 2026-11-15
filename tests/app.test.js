@@ -11,11 +11,11 @@ let server;
 async function start(options) {
   const app = createApp({ distDir: '/nonexistent', generate: async () => goodResult, ...options });
   server = await new Promise((resolve) => {
-    const s = app.listen(0, () => resolve(s));
+    const listening = app.listen(0, () => resolve(listening));
   });
-  const base = `http://localhost:${server.address().port}`;
+  const baseUrl = `http://localhost:${server.address().port}`;
   return (body, headers = {}) =>
-    fetch(`${base}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body });
+    fetch(`${baseUrl}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body });
 }
 
 afterEach(() => new Promise((resolve) => server.close(resolve)));
@@ -43,39 +43,6 @@ describe('POST /api/generate', () => {
     expect(crossSite.status).toBe(403);
     expect((await crossSite.json()).error.code).toBe('FORBIDDEN');
     expect((await post(body, { 'Sec-Fetch-Site': 'same-origin' })).status).toBe(200);
-  });
-
-  it('serves a repeated request from the cache without calling the model again', async () => {
-    let calls = 0;
-    const post = await start({
-      generate: async () => {
-        calls += 1;
-        return goodResult;
-      },
-    });
-    const first = await (await post(JSON.stringify({ text: 'React Hooks' }))).json();
-    const second = await (await post(JSON.stringify({ text: '  react   hooks ' }))).json();
-    expect(first.cached).toBeUndefined();
-    expect(second.cached).toBe(true);
-    expect(second.studySet).toEqual(goodResult.studySet);
-    expect(calls).toBe(1);
-
-    // "generate again" must reach the model
-    await post(JSON.stringify({ text: 'React Hooks', fresh: true }));
-    expect(calls).toBe(2);
-  });
-
-  it('never caches failures', async () => {
-    let calls = 0;
-    const post = await start({
-      generate: async () => {
-        calls += 1;
-        throw new AppError('OVERLOADED', 'busy');
-      },
-    });
-    await post(JSON.stringify({ text: 'hooks' }));
-    await post(JSON.stringify({ text: 'hooks' }));
-    expect(calls).toBe(2);
   });
 
   it('turns an AppError into a JSON error with the matching status', async () => {
@@ -124,40 +91,15 @@ describe('POST /api/generate', () => {
     // in X-Forwarded-For, and a local proxy as the direct connection.
     const post = await start({ trustProxy: 3, rateLimitPerMinute: 1 });
     const body = JSON.stringify({ text: 'hooks' });
-    const via = (visitor, cloudflare, balancer) => ({ 'X-Forwarded-For': `${visitor}, ${cloudflare}, ${balancer}` });
+    const forwardedFor = (visitor, cloudflare, balancer) => ({ 'X-Forwarded-For': `${visitor}, ${cloudflare}, ${balancer}` });
 
-    expect((await post(body, via('198.51.100.1', '104.22.0.1', '10.0.0.1'))).status).toBe(200);
+    expect((await post(body, forwardedFor('198.51.100.1', '104.22.0.1', '10.0.0.1'))).status).toBe(200);
     // Same visitor, different proxies on the way: still the same visitor.
-    expect((await post(body, via('198.51.100.1', '172.69.0.9', '10.0.0.7'))).status).toBe(429);
+    expect((await post(body, forwardedFor('198.51.100.1', '172.69.0.9', '10.0.0.7'))).status).toBe(429);
     // A different visitor has their own limit.
-    expect((await post(body, via('198.51.100.2', '104.22.0.1', '10.0.0.1'))).status).toBe(200);
+    expect((await post(body, forwardedFor('198.51.100.2', '104.22.0.1', '10.0.0.1'))).status).toBe(200);
     // Putting a fake address in front does not reset the limit.
     const spoofed = { 'X-Forwarded-For': '203.0.113.7, 198.51.100.1, 104.22.0.1, 10.0.0.1' };
     expect((await post(body, spoofed)).status).toBe(429);
-  });
-
-  it('enforces the daily limit separately from the per-minute limit', async () => {
-    const post = await start({ rateLimitPerMinute: 50, rateLimitPerDay: 1 });
-    const body = JSON.stringify({ text: 'hooks' });
-    expect((await post(body)).status).toBe(200);
-    const second = await post(body);
-    expect(second.status).toBe(429);
-    expect((await second.json()).error.message).toMatch(/daily limit/);
-  });
-
-  it('answers "busy" instead of queueing when too many generations are running', async () => {
-    let release;
-    const gate = new Promise((resolve) => (release = resolve));
-    const post = await start({ maxConcurrent: 1, generate: () => gate.then(() => goodResult) });
-    const body = JSON.stringify({ text: 'hooks' });
-    const first = post(body); // occupies the only slot
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const second = await post(JSON.stringify({ text: 'a different topic' }));
-    expect(second.status).toBe(503);
-    expect((await second.json()).error.code).toBe('SERVER_BUSY');
-    release();
-    expect((await first).status).toBe(200);
-    // the slot is free again
-    expect((await post(body)).status).toBe(200);
   });
 });

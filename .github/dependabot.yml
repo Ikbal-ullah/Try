@@ -1,5 +1,3 @@
-# Dependabot opens a pull request when a dependency has a newer version,
-# so security fixes do not depend on someone remembering to check.
 version: 2
 updates:
   - package-ecosystem: npm
