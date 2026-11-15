@@ -1,29 +1,8 @@
-/* ==========================================================================
-   Design system
-
-   A dark "aurora" theme: soft coloured light on a charcoal background.
-
-   Colour follows the 60 / 30 / 10 rule:
-
-     60%  Charcoal - the background and the card surfaces. Dark, quiet, lets
-                     the content and the light effects stand out.
-     30%  Violet   - the supporting colour: focus rings, selected states,
-                     step numbers, the cool end of every gradient.
-     10%  Pink     - the "pop". Violet and pink are neighbours on the colour
-                     wheel (an analogous pair), so they blend into one smooth
-                     gradient, and pink, the warmer and lighter of the two,
-                     is what the eye lands on. It marks the main action,
-                     progress, and the question side of a flashcard.
-
-   A faint peach glow in the page background is ambient light only; no
-   control or text uses it. Green and red appear only as status colours
-   (right / wrong / error), always together with an icon or a label.
-
-   The app has one theme on purpose: the look depends on a dark background.
+/* A dark "aurora" theme following the 60 / 30 / 10 colour rule; the reasoning
+   is in the README's Design section.
 
    Layout is mobile-first: base styles are the phone layout, and the
-   @media (min-width) rules near the bottom adjust for larger screens.
-   ========================================================================== */
+   @media (min-width) rules near the bottom adjust for larger screens. */
 
 :root {
   /* 60% - charcoal */

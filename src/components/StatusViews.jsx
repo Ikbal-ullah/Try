@@ -34,7 +34,6 @@ export function LoadingState({ isSlow, onCancel }) {
         <div className="skeleton__card" />
         <div className="skeleton__line" />
       </div>
-      {/* role="status" makes screen readers announce the text when it changes */}
       <p role="status" className="status__text">
         {isSlow ? 'Still working… free AI models can take up to half a minute.' : 'Writing your flashcards and quiz…'}
       </p>

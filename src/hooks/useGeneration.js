@@ -28,14 +28,14 @@ export function useGeneration() {
   }, []);
 
   const generate = useCallback(
-    async (text, { mock = '', fresh = false } = {}) => {
+    async (text, { mock = '' } = {}) => {
       invalidateInFlight();
       const requestId = latestRequestId.current;
       const isLatest = () => requestId === latestRequestId.current;
 
       const controller = new AbortController();
       controllerRef.current = controller;
-      lastRequestRef.current = { text, mock, fresh };
+      lastRequestRef.current = { text, mock };
 
       let timedOut = false;
       const slowTimer = setTimeout(() => isLatest() && dispatch({ type: 'slow' }), SLOW_AFTER_MS);
@@ -47,7 +47,7 @@ export function useGeneration() {
       dispatch({ type: 'start' });
 
       try {
-        const { studySet, warnings } = await requestStudySet({ text, mock, fresh, signal: controller.signal });
+        const { studySet, warnings } = await requestStudySet({ text, mock, signal: controller.signal });
         // THE stale-response guard. If the user has started another request
         // (or cancelled) while we were waiting, this answer is dropped.
         if (!isLatest()) return;
@@ -67,8 +67,8 @@ export function useGeneration() {
   );
 
   const retry = useCallback(() => {
-    const last = lastRequestRef.current;
-    if (last) generate(last.text, { mock: last.mock, fresh: last.fresh });
+    const lastRequest = lastRequestRef.current;
+    if (lastRequest) generate(lastRequest.text, { mock: lastRequest.mock });
   }, [generate]);
 
   /** Stop waiting (or dismiss an error) and go back to the previous result, if any. */

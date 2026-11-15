@@ -1,11 +1,7 @@
 import { Component } from 'react';
 
-// The last line of defence. Validation should mean the study components never
-// receive data they cannot render - but if a bug slips through, the user gets
-// a message and a way out instead of a blank page.
-//
-// This is the one class component in the app: React only supports error
-// boundaries as classes (there is no hook equivalent).
+// If a rendering bug slips past validation, the user gets a message and a way
+// out instead of a blank page. A class because React has no hook for this.
 export default class ErrorBoundary extends Component {
   state = { hasError: false };
 

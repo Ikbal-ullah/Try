@@ -4,11 +4,11 @@ import { ArrowRight, Check, Cross } from './Icons.jsx';
 import { quizReducer, startQuiz } from './quizReducer.js';
 
 export default function Quiz({ questions, isActive }) {
-  const allIds = questions.map((q) => q.id);
-  const [state, dispatch] = useReducer(quizReducer, allIds, startQuiz);
+  const allQuestionIds = questions.map(({ id }) => id);
+  const [state, dispatch] = useReducer(quizReducer, allQuestionIds, startQuiz);
   const nextButtonRef = useRef(null);
 
-  const question = questions.find((q) => q.id === state.queue[state.position]);
+  const question = questions.find(({ id }) => id === state.queue[state.position]);
   const hasAnswered = state.selected !== null;
 
   function answer(optionIndex) {
@@ -28,22 +28,22 @@ export default function Quiz({ questions, isActive }) {
   );
 
   if (state.phase === 'results') {
-    const total = state.queue.length;
-    const correct = total - state.wrongIds.length;
-    const wrongQuestions = questions.filter((q) => state.wrongIds.includes(q.id));
+    const totalCount = state.queue.length;
+    const correctCount = totalCount - state.wrongIds.length;
+    const wrongQuestions = questions.filter(({ id }) => state.wrongIds.includes(id));
     return (
       <div className="quiz">
         <div className="score">
           <p className="score__number">
-            {correct}
-            <span>/{total}</span>
+            {correctCount}
+            <span>/{totalCount}</span>
           </p>
           <div>
             <h3 className="quiz__score">
-              {correct} of {total} correct
+              {correctCount} of {totalCount} correct
               {state.round > 1 && <span className="quiz__round"> · round {state.round}</span>}
             </h3>
-            <progress value={correct} max={total} aria-hidden="true" />
+            <progress value={correctCount} max={totalCount} aria-hidden="true" />
           </div>
         </div>
 
@@ -53,10 +53,10 @@ export default function Quiz({ questions, isActive }) {
           <>
             <p>Worth another look:</p>
             <ul className="review-list">
-              {wrongQuestions.map((q) => (
-                <li key={q.id}>
-                  <strong>{q.question}</strong>
-                  <span>Answer: {q.options[q.answerIndex]}</span>
+              {wrongQuestions.map((missed) => (
+                <li key={missed.id}>
+                  <strong>{missed.question}</strong>
+                  <span>Answer: {missed.options[missed.answerIndex]}</span>
                 </li>
               ))}
             </ul>
@@ -69,7 +69,7 @@ export default function Quiz({ questions, isActive }) {
               Re-test {wrongQuestions.length} wrong {wrongQuestions.length === 1 ? 'answer' : 'answers'}
             </button>
           )}
-          <button type="button" className="btn" onClick={() => dispatch({ type: 'restart', questionIds: allIds })}>
+          <button type="button" className="btn" onClick={() => dispatch({ type: 'restart', questionIds: allQuestionIds })}>
             Restart full quiz
           </button>
         </div>

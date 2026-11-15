@@ -23,13 +23,12 @@ export function generationReducer(state, action) {
     case 'slow':
       return state.status === 'loading' ? { ...state, isSlow: true } : state;
     case 'success':
+    case 'load': // open a saved session
       return { status: 'success', result: action.result, error: null, isSlow: false };
     case 'failure':
       return { ...state, status: 'error', error: action.error, isSlow: false };
     case 'cancel': // also used to dismiss an error
       return { ...state, status: state.result ? 'success' : 'idle', error: null, isSlow: false };
-    case 'load': // open a saved session
-      return { status: 'success', result: action.result, error: null, isSlow: false };
     case 'clear':
       return initialState;
     default:

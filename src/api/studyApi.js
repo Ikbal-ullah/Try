@@ -13,17 +13,13 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * `fresh: true` asks the server for a newly generated set even if it has a
- * cached one for the same text ("generate again").
- */
-export async function requestStudySet({ text, mock, fresh, signal }) {
+export async function requestStudySet({ text, mock, signal }) {
   let response;
   try {
     response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, mock: mock || undefined, fresh: fresh || undefined }),
+      body: JSON.stringify({ text, mock: mock || undefined }),
       signal,
     });
   } catch (err) {
@@ -32,9 +28,9 @@ export async function requestStudySet({ text, mock, fresh, signal }) {
     throw new ApiError('NETWORK', 'Could not reach the server. Check your connection and try again.');
   }
 
-  let body;
+  let responseBody;
   try {
-    body = await response.json();
+    responseBody = await response.json();
   } catch (err) {
     if (err.name === 'AbortError' || signal?.aborted) throw err;
     // e.g. the dev proxy answering with an HTML error page because the API is down
@@ -42,21 +38,25 @@ export async function requestStudySet({ text, mock, fresh, signal }) {
   }
 
   if (!response.ok) {
-    const code = typeof body?.error?.code === 'string' ? body.error.code : 'UNKNOWN';
-    const message = typeof body?.error?.message === 'string' ? body.error.message : 'Something went wrong.';
-    const requestId = typeof body?.error?.requestId === 'string' ? body.error.requestId : undefined;
-    throw new ApiError(code, message, requestId);
+    const { code, message, requestId } = responseBody?.error ?? {};
+    throw new ApiError(
+      typeof code === 'string' ? code : 'UNKNOWN',
+      typeof message === 'string' ? message : 'Something went wrong.',
+      typeof requestId === 'string' ? requestId : undefined,
+    );
   }
 
   // The server already validated this, but the browser should not have to
   // take that on faith. Same validator, second checkpoint.
-  let checked;
+  let validated;
   try {
-    checked = normalizeStudySet(body?.studySet);
+    validated = normalizeStudySet(responseBody?.studySet);
   } catch (err) {
     throw new ApiError(err.code ?? 'WRONG_SHAPE', err.message);
   }
 
-  const serverWarnings = Array.isArray(body.warnings) ? body.warnings.filter((w) => typeof w === 'string') : [];
-  return { studySet: checked.studySet, warnings: [...serverWarnings, ...checked.warnings] };
+  const serverWarnings = Array.isArray(responseBody.warnings)
+    ? responseBody.warnings.filter((warning) => typeof warning === 'string')
+    : [];
+  return { studySet: validated.studySet, warnings: [...serverWarnings, ...validated.warnings] };
 }

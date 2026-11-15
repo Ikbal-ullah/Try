@@ -18,7 +18,7 @@ export default function App() {
 
   // Every newly generated set is saved automatically. Opening a saved one is
   // not a new result, so it is skipped (it already has this id in storage).
-  const savedIds = useRef(new Set(sessions.map((s) => s.id)));
+  const savedIds = useRef(new Set(sessions.map((session) => session.id)));
   useEffect(() => {
     if (status === 'success' && result && !savedIds.current.has(result.id)) {
       savedIds.current.add(result.id);
@@ -26,11 +26,8 @@ export default function App() {
     }
   }, [status, result, saveSession]);
 
-  function handleSubmit(value, options) {
-    // Asking again for the text that is already on screen means "give me a
-    // different set", so tell the server not to answer from its cache.
-    const isRepeat = result !== null && result.sourceText.trim() === value.trim();
-    generation.generate(value, { ...options, fresh: isRepeat });
+  function handleSubmit(studyText, options) {
+    generation.generate(studyText, options);
     // On a phone the form fills the screen; bring the loading state into view.
     resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -49,7 +46,6 @@ export default function App() {
   return (
     <div className="app">
       <header className="hero">
-        {/* Purely decorative, so it is hidden from screen readers. */}
         <div className="hero__art" aria-hidden="true">
           {/* The lines come first so the cards sit on top of them. */}
           <ContourLines />
